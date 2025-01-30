@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>삼각함수의 관계(2)</title>
+  <style>
+    /* 흑백 색상 테마 */
+    body {
+      background-color: #fff;
+      color: #000;
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    header, footer {
+      text-align: center;
+      padding: 10px;
+      background-color: #000;
+      color: #fff;
+    }
+    main {
+      padding: 20px;
+    }
+
+    #startScreen,
+    #quizScreen,
+    #gameOverScreen {
+      display: none;
+    }
+
+    .energy-bar {
+      position: relative;
+      width: 100%;
+      height: 20px;
+      background-color: #ccc; 
+      margin: 10px 0;
+      overflow: hidden;
+    }
+    .energy-bar-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      background-color: #000; 
+      transition: width 0.2s linear;
+    }
+
+    .info {
+      margin: 10px 0;
+    }
+    .question {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .options {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .options li {
+      margin: 5px 0;
+      cursor: pointer;
+      border: 1px solid #000; 
+      padding: 5px;
+      width: fit-content;
+    }
+    .options li:hover {
+      background-color: #ddd;
+    }
+    .hidden {
+      display: none;
+    }
+    .answer-result {
+      margin: 15px 0;
+      font-weight: bold;
+    }
+
+    button {
+      margin: 10px 5px 0 0;
+      padding: 5px 10px;
+      cursor: pointer;
+      background-color: #000;
+      color: #fff;
+      border: 1px solid #000;
+    }
+    button:hover {
+      background-color: #444;
+    }
+    #response {
+      white-space: pre-wrap;
+      margin-top: 10px;
+      color: red;
+      font-size: 0.9em;
+    }
+  </style>
+  <!-- MathJax 로드 -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+</head>
+<body>
+<header>
+  <h1>삼각함수의 관계(2)</h1>
+</header>
+
+<main>
+  <!-- 시작 화면 -->
+  <div id="startScreen">
+    <h2>난이도를 선택해주세요</h2>
+    <div>
+      <label for="userName">이름:</label>
+      <input type="text" id="userName" />
+    </div>
+    <div style="margin-top:10px;">
+      <button onclick="startGame('최상')">최상 (20초)</button>
+      <button onclick="startGame('상')">상 (30초)</button>
+      <button onclick="startGame('중')">중 (40초)</button>
+      <button onclick="startGame('하')">하 (무제한)</button>
+    </div>
+  </div>
+
+  <!-- 퀴즈 화면 -->
+  <div id="quizScreen">
+    <div class="info">
+      <span>남은 기회: <span id="life">3</span></span>
+      &nbsp;|&nbsp;
+      <span>점수: <span id="score">0</span></span>
+      &nbsp;|&nbsp;
+      <!-- 전체 게임 경과 시간 -->
+      <span>전체 시간: <span id="totalTime">0</span>초</span>
+    </div>
+
+    <!-- 에너지바 -->
+    <div class="energy-bar" id="energyBarContainer">
+      <div class="energy-bar-fill" id="energyBarFill"></div>
+    </div>
+
+    <div class="question" id="questionText"></div>
+    <ul class="options" id="optionList"></ul>
+    <div class="answer-result" id="answerResult" class="hidden"></div>
+    <button id="nextButton" onclick="nextQuestion()" class="hidden">다음 문제</button>
+  </div>
+
+  <!-- 게임 오버 화면 -->
+  <div id="gameOverScreen">
+    <h2>게임 종료</h2>
+    <p>최종 점수: <span id="finalScore"></span></p>
+    <p>총 경과 시간: <span id="finalTime"></span>초</p>
+    <button onclick="sendScore()">점수전송</button>
+    <div id="response"></div>
+  </div>
+</main>
+
+<footer>
+  <p>© 삼각함수 퀴즈</p>
+</footer>
+
+<script>
+  /******************************************************
+   * 1) 문제 데이터 정의
+   *   각 문제를 객체로 구성하되,
+   *   question: (문제본문; LaTeX 문법 포함)
+   *   choices: (보기 배열; LaTeX 문법 포함)
+   *   answer: (정답 인덱스; 0~3 중 하나)
+   ******************************************************/
+
+  const allQuestions = [
+    // [1]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta - \\cos\\theta = \\dfrac{1}{2}\\).<br>\\(\\sin\\theta\\cos\\theta\\)의 값은?",
+      choices: [
+        "\\(\\dfrac{1}{4}\\)",
+        "\\(\\dfrac{3}{8}\\)",
+        "\\(\\dfrac{1}{2}\\)",
+        "\\(\\dfrac{5}{8}\\)"
+      ],
+      answer: 1 // 3/8
+    },
+    // [2]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta + \\cos\\theta = \\dfrac{1}{2}\\).<br>\\(\\tan\\theta + \\dfrac{1}{\\tan\\theta}\\)의 값은?",
+      choices: [
+        "\\(-\\dfrac{8}{3}\\)",
+        "\\(-\\dfrac{4}{3}\\)",
+        "\\(\\dfrac{4}{3}\\)",
+        "\\(\\dfrac{8}{3}\\)"
+      ],
+      answer: 0 // -8/3
+    },
+    // [3]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta - \\cos\\theta = \\dfrac{1}{2}\\).<br>\\(\\sin^3\\theta - \\cos^3\\theta\\)의 값은?",
+      choices: [
+        "\\(\\dfrac{1}{8}\\)",
+        "\\(\\dfrac{3}{16}\\)",
+        "\\(\\dfrac{11}{16}\\)",
+        "\\(\\dfrac{5}{8}\\)"
+      ],
+      answer: 2 // 11/16
+    },
+    // [4]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta + \\cos\\theta = \\dfrac{1}{2}\\).<br>\\(\\sin\\theta \\cos\\theta\\)의 값은?",
+      choices: [
+        "\\(-\\dfrac{3}{8}\\)",
+        "\\(-\\dfrac{1}{4}\\)",
+        "\\(\\dfrac{1}{4}\\)",
+        "\\(\\dfrac{3}{8}\\)"
+      ],
+      answer: 0 // -3/8
+    },
+    // [5]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta + \\cos\\theta = \\dfrac{1}{2}\\).<br>\\(\\tan\\theta + \\dfrac{1}{\\tan\\theta}\\)의 값은?",
+      choices: [
+        "\\(-\\dfrac{8}{3}\\)",
+        "\\(-\\dfrac{4}{3}\\)",
+        "\\(\\dfrac{4}{3}\\)",
+        "\\(\\dfrac{8}{3}\\)"
+      ],
+      answer: 0 // -8/3
+    },
+    // [6]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta + \\cos\\theta = \\dfrac{1}{2}\\).<br>\\(\\dfrac{1}{\\sin\\theta \\cos\\theta}\\)의 값은?",
+      choices: [
+        "\\(-\\dfrac{8}{3}\\)",
+        "\\(-\\dfrac{4}{3}\\)",
+        "\\(\\dfrac{4}{3}\\)",
+        "\\(\\dfrac{8}{3}\\)"
+      ],
+      answer: 0 // -8/3
+    },
+    // [7]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta + \\cos\\theta = \\dfrac{1}{2}\\).<br>\\(\\sin^4\\theta + \\cos^4\\theta\\)의 값은?",
+      choices: [
+        "\\(\\dfrac{1}{4}\\)",
+        "\\(\\dfrac{3}{8}\\)",
+        "\\(\\dfrac{11}{16}\\)",
+        "\\(\\dfrac{23}{32}\\)"
+      ],
+      answer: 3 // 23/32
+    },
+    // [8]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta + \\cos\\theta = \\dfrac{1}{3}\\).<br>\\(\\sin\\theta \\cos\\theta\\)의 값은?",
+      choices: [
+        "\\(-\\dfrac{4}{9}\\)",
+        "\\(-\\dfrac{1}{3}\\)",
+        "\\(\\dfrac{1}{3}\\)",
+        "\\(\\dfrac{4}{9}\\)"
+      ],
+      answer: 0 // -4/9
+    },
+    // [9]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta + \\cos\\theta = \\dfrac{1}{3}\\).<br>\\((\\sin\\theta - \\cos\\theta)^2\\)의 값은?",
+      choices: [
+        "\\(\\dfrac{1}{9}\\)",
+        "\\(\\dfrac{5}{9}\\)",
+        "\\(\\dfrac{17}{9}\\)",
+        "\\(\\dfrac{25}{9}\\)"
+      ],
+      answer: 2 // 17/9
+    },
+    // [10]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta + \\cos\\theta = \\dfrac{1}{3}\\).<br>\\(\\dfrac{1}{\\sin\\theta} + \\dfrac{1}{\\cos\\theta}\\)의 값은?",
+      choices: [
+        "\\(-\\dfrac{3}{4}\\)",
+        "\\(-\\dfrac{1}{2}\\)",
+        "\\(\\dfrac{1}{2}\\)",
+        "\\(\\dfrac{3}{4}\\)"
+      ],
+      answer: 0 // -3/4
+    },
+    // [16]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\cos\\theta = \\dfrac{1}{2}\\).<br>\\(\\dfrac{\\sin\\theta}{\\tan\\theta}\\)의 값은?",
+      choices: [
+        "\\(\\dfrac{1}{2}\\)",
+        "\\(\\dfrac{\\sqrt{3}}{2}\\)",
+        "\\(1\\)",
+        "\\(\\sqrt{3}\\)"
+      ],
+      answer: 0 // 1/2
+    },
+    // [17]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta = \\dfrac{3}{7}\\).<br>\\(\\cos\\theta \\tan\\theta\\)의 값은?",
+      choices: [
+        "\\(\\dfrac{3}{7}\\)",
+        "\\(\\dfrac{4}{7}\\)",
+        "\\(\\dfrac{5}{7}\\)",
+        "\\(\\dfrac{6}{7}\\)"
+      ],
+      answer: 0 // 3/7
+    },
+    // [18]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\cos\\theta = \\dfrac{1}{4}\\).<br>\\(\\dfrac{\\tan\\theta}{\\sin\\theta}\\)의 값은?",
+      choices: [
+        "\\(1\\)",
+        "\\(2\\)",
+        "\\(3\\)",
+        "\\(4\\)"
+      ],
+      answer: 3 // 4
+    },
+    // [19]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\tan\\theta = 3\\).<br>\\((\\sin\\theta - \\cos\\theta)^2\\)의 값은?",
+      choices: [
+        "\\(\\dfrac{1}{5}\\)",
+        "\\(\\dfrac{2}{5}\\)",
+        "\\(\\dfrac{3}{5}\\)",
+        "\\(\\dfrac{4}{5}\\)"
+      ],
+      answer: 3 // 4/5
+    },
+    // [20]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\cos\\theta = \\dfrac{1}{3}\\).<br>\\(1 + \\tan^2\\theta\\)의 값은?",
+      choices: [
+        "\\(3\\)",
+        "\\(6\\)",
+        "\\(9\\)",
+        "\\(12\\)"
+      ],
+      answer: 2 // 9
+    },
+    // [21]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta = -\\dfrac{1}{\\sqrt{3}}\\).<br>\\(1 + \\dfrac{1}{\\tan^2\\theta}\\)의 값은?",
+      choices: [
+        "\\(1\\)",
+        "\\(2\\)",
+        "\\(3\\)",
+        "\\(4\\)"
+      ],
+      answer: 1 // 2
+    },
+    // [22]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\tan\\theta = \\dfrac{4}{3}\\).<br>\\(\\sin\\theta \\cos\\theta\\)의 값은?",
+      choices: [
+        "\\(\\dfrac{12}{25}\\)",
+        "\\(\\dfrac{13}{25}\\)",
+        "\\(\\dfrac{14}{25}\\)",
+        "\\(\\dfrac{15}{25}\\)"
+      ],
+      answer: 0 // 12/25
+    },
+    // [23]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta + \\cos\\theta = \\dfrac{4}{3}\\).<br>\\(\\tan\\theta + \\dfrac{1}{\\tan\\theta}\\)의 값은?",
+      choices: [
+        "\\(\\dfrac{7}{12}\\)",
+        "\\(\\dfrac{8}{12}\\)",
+        "\\(\\dfrac{9}{12}\\)",
+        "\\(\\dfrac{10}{12}\\)"
+      ],
+      answer: 2 // 9/12
+    },
+    // [24]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta + \\cos\\theta = \\dfrac{7}{5}\\).<br>\\(\\tan\\theta + \\dfrac{1}{\\tan\\theta}\\)의 값은?",
+      choices: [
+        "\\(\\dfrac{12}{25}\\)",
+        "\\(\\dfrac{13}{25}\\)",
+        "\\(\\dfrac{14}{25}\\)",
+        "\\(\\dfrac{15}{25}\\)"
+      ],
+      answer: 3 // 15/25
+    },
+    // [25]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta - \\cos\\theta = \\dfrac{\\sqrt{2}}{4}\\).<br>\\(\\sin\\theta \\cos\\theta\\)의 값은?",
+      choices: [
+        "\\(\\dfrac{1}{8}\\)",
+        "\\(\\dfrac{3}{16}\\)",
+        "\\(\\dfrac{5}{16}\\)",
+        "\\(\\dfrac{7}{16}\\)"
+      ],
+      answer: 1 // 3/16
+    },
+    // [26]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta - \\cos\\theta = \\dfrac{3}{2}\\).<br>\\(\\dfrac{1}{\\cos\\theta}\\bigl(\\tan\\theta - \\dfrac{1}{\\tan^2\\theta}\\bigr)\\)의 값은?",
+      choices: [
+        "\\(\\dfrac{12}{25}\\)",
+        "\\(\\dfrac{13}{25}\\)",
+        "\\(\\dfrac{14}{25}\\)",
+        "\\(\\dfrac{15}{25}\\)"
+      ],
+      answer: 2 // 14/25
+    },
+    // [27]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta - \\cos\\theta = \\sqrt{2}\\).<br>\\(\\sin^3\\theta - \\cos^3\\theta\\)의 값은?",
+      choices: [
+        "\\(\\sqrt{2}\\)",
+        "\\(2\\sqrt{2}\\)",
+        "\\(3\\sqrt{2}\\)",
+        "\\(4\\sqrt{2}\\)"
+      ],
+      answer: 0 // √2
+    },
+    // [28]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta \\cos\\theta = \\dfrac{1}{4}\\).<br>\\(\\tan\\theta + \\dfrac{1}{\\tan\\theta}\\)의 값은?",
+      choices: [
+        "\\(1\\)",
+        "\\(2\\)",
+        "\\(3\\)",
+        "\\(4\\)"
+      ],
+      answer: 3 // 4
+    },
+    // [29]
+    {
+      question: "다음 조건을 보고 값을 구하세요: \\(\\sin\\theta - \\cos\\theta = \\dfrac{1}{3}\\).<br>\\((\\sin\\theta + \\cos\\theta)^2\\)의 값은?",
+      choices: [
+        "\\(\\dfrac{1}{9}\\)",
+        "\\(\\dfrac{4}{9}\\)",
+        "\\(\\dfrac{7}{9}\\)",
+        "\\(\\dfrac{10}{9}\\)"
+      ],
+      answer: 3 // 10/9
+    }
+  ];
+
+  // 난이도별 설정
+  const difficultySettings = {
+    "최상": { timeLimit: 20, scorePerQuestion: 20 },
+    "상": { timeLimit: 30, scorePerQuestion: 15 },
+    "중": { timeLimit: 40, scorePerQuestion: 13 },
+    "하": { timeLimit: Infinity, scorePerQuestion: 10 }
+  };
+
+  // 전역 변수들
+  let currentQuestions = [];     // 처음엔 전부 섞어서 할당
+  let currentIndex = 0;          // 현재 문제 번호
+  let score = 0;                 // 현재 점수
+  let life = 3;                  // 남은 기회
+  let totalTime = 0;             // 전체 게임 시간(초)
+  let intervalId = null;         // 전체 시간 카운트용
+  let questionTimeLimit = 0;     // 문제별 제한 시간(초)
+  let questionTimer = null;      // 문제 시간 카운트용
+  let energyBarFill;             // 에너지바 DOM
+  let chosenDifficulty = "";     // 현재 난이도
+  let userName = "";             // 유저이름
+
+  /******************************************************
+   * 2) 유틸 함수들
+   ******************************************************/
+  // 배열 셔플(피셔-예이츠)
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+
+  // 보기(4개) 인덱스를 섞은 배열 반환
+  function shuffleChoices(choices) {
+    const indices = [0, 1, 2, 3];
+    shuffleArray(indices);
+    return indices;
+  }
+
+  // 현재 문제 시간 초과 처리
+  function handleTimeUp() {
+    // 기회 차감
+    life--;
+    document.getElementById('life').textContent = life;
+    // 정답 알려주고 넘어가기
+    showAnswer(false);
+    if (life <= 0) {
+      // 게임오버
+      endGame();
+    } else {
+      // 바로 다음문제
+      document.getElementById("nextButton").classList.remove("hidden");
+    }
+  }
+
+  // 문제 타이머 초기화
+  function startQuestionTimer() {
+    // 무제한이면(하) 바로 리턴
+    if (!isFinite(questionTimeLimit)) {
+      energyBarFill.style.width = "100%"; 
+      return;
+    }
+
+    let remain = questionTimeLimit;
+    // 에너지바는 remain/questionTimeLimit * 100
+    energyBarFill.style.width = "100%";
+    
+    questionTimer = setInterval(() => {
+      remain -= 0.2; // 0.2초 단위로 조금 더 부드럽게 표현
+      if (remain <= 0) {
+        clearInterval(questionTimer);
+        questionTimer = null;
+        energyBarFill.style.width = "0%";
+        handleTimeUp();
+      } else {
+        let ratio = (remain / questionTimeLimit) * 100;
+        if (ratio < 0) ratio = 0;
+        energyBarFill.style.width = ratio + "%";
+      }
+    }, 200);
+  }
+
+  // 문제 타이머 중지
+  function stopQuestionTimer() {
+    if (questionTimer) {
+      clearInterval(questionTimer);
+      questionTimer = null;
+    }
+  }
+
+  // 전체 게임 시간 카운트
+  function startTotalTimer() {
+    if (intervalId) {
+      clearInterval(intervalId);
+    }
+    totalTime = 0;
+    intervalId = setInterval(() => {
+      totalTime++;
+      document.getElementById("totalTime").textContent = totalTime;
+    }, 1000);
+  }
+
+  function stopTotalTimer() {
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  }
+
+  /******************************************************
+   * 3) 게임 진행 함수들
+   ******************************************************/
+
+  // 난이도(시간제한, 점수) 및 이름 설정 후 게임 시작
+  function startGame(difficulty) {
+    userName = document.getElementById("userName").value.trim();
+    if (!userName) {
+      alert("이름을 입력해주세요.");
+      return;
+    }
+
+    chosenDifficulty = difficulty;
+    questionTimeLimit = difficultySettings[difficulty].timeLimit;
+
+    // 점수 초기화
+    score = 0;
+    life = 3;
+    currentIndex = 0;
+
+    document.getElementById("score").textContent = score;
+    document.getElementById("life").textContent = life;
+
+    // 문제 배열 모두 섞기
+    currentQuestions = shuffleArray([...allQuestions]);
+
+    // 화면 전환
+    document.getElementById("startScreen").style.display = "none";
+    document.getElementById("quizScreen").style.display = "block";
+    document.getElementById("gameOverScreen").style.display = "none";
+
+    // 전체 타이머 시작
+    startTotalTimer();
+    
+    // 첫 문제 표시
+    loadQuestion();
+  }
+
+  // 문제 불러오기
+  function loadQuestion() {
+    // answerResult 지우기
+    const ans = document.getElementById("answerResult");
+    ans.classList.add("hidden");
+    ans.innerHTML = "";
+
+    document.getElementById("nextButton").classList.add("hidden");
+
+    // 에너지바 초기화
+    energyBarFill = document.getElementById("energyBarFill");
+    energyBarFill.style.width = "100%";
+
+    // 만약 currentIndex가 currentQuestions 길이를 벗어나면
+    // -> 모든 문제를 한 바퀴 돌았으므로, 이후엔 무한 랜덤으로 출제
+    if (currentIndex >= currentQuestions.length) {
+      // 이제부터는 끝없이 랜덤
+      currentIndex = Math.floor(Math.random() * currentQuestions.length);
+    }
+
+    const q = currentQuestions[currentIndex];
+
+    // 문제 텍스트 표시
+    document.getElementById("questionText").innerHTML = q.question;
+
+    // 보기 4개 셔플
+    const shuffledIndices = shuffleChoices(q.choices);
+    const optionList = document.getElementById("optionList");
+    optionList.innerHTML = "";
+
+    // 셔플된 순서대로 li를 생성
+    shuffledIndices.forEach((originalChoiceIndex, i) => {
+      const li = document.createElement("li");
+      li.innerHTML = q.choices[originalChoiceIndex];
+      li.onclick = () => {
+        stopQuestionTimer();
+        // i: 현재 화면에 표시된 순서(0~3)
+        checkAnswer(i, shuffledIndices, q);
+      };
+      optionList.appendChild(li);
+    });
+
+    // 문제 수식 렌더링
+    MathJax.typeset();
+
+    // 문제 타이머 시작
+    startQuestionTimer();
+  }
+
+  // 정답 체크
+  function checkAnswer(clickedIndex, shuffledIndices, q) {
+    // 사용자가 클릭한 실제 원본 보기 인덱스
+    const chosenOriginalIndex = shuffledIndices[clickedIndex];
+    // 정답 여부 판별
+    if (chosenOriginalIndex === q.answer) {
+      // 정답
+      const point = difficultySettings[chosenDifficulty].scorePerQuestion;
+      score += point;
+      document.getElementById("score").textContent = score;
+      showAnswer(true);
+    } else {
+      // 오답
+      life--;
+      document.getElementById("life").textContent = life;
+      showAnswer(false);
+      if (life <= 0) {
+        endGame();
+        return;
+      }
+    }
+    document.getElementById("nextButton").classList.remove("hidden");
+  }
+
+  // 정답 표시
+  function showAnswer(isCorrect) {
+    const ans = document.getElementById("answerResult");
+    ans.classList.remove("hidden");
+    if (isCorrect) {
+      ans.textContent = "정답입니다!";
+    } else {
+      // 정답 출력
+      const q = currentQuestions[currentIndex];
+      ans.textContent = "틀렸습니다! 정답: " + q.choices[q.answer];
+    }
+  }
+
+  // 다음 문제 버튼
+  function nextQuestion() {
+    stopQuestionTimer();
+    currentIndex++;
+    loadQuestion();
+  }
+
+  // 게임 종료
+  function endGame() {
+    stopQuestionTimer();
+    stopTotalTimer();
+    // 화면 전환
+    document.getElementById("quizScreen").style.display = "none";
+    document.getElementById("gameOverScreen").style.display = "block";
+    document.getElementById("finalScore").textContent = score;
+    document.getElementById("finalTime").textContent = totalTime;
+  }
+
+  // 점수 전송
+  async function sendScore() {
+    saveData("삼각함수의 관계(2)", userName, score, totalTime);
+  }
+
+  /******************************************************
+   * 4) 서버에 데이터 전송 함수 (문제 요구사항)
+   ******************************************************/
+  async function saveData(game, name, score, elapsedTime) {
+    const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+
+    const requestData = {
+      game,
+      name,
+      score: parseInt(score, 10),
+      elapsedTime: parseInt(elapsedTime, 10)
+    };
+
+    try {
+      const response = await fetch(FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      });
+
+      const responseData = await response.json();
+
+      if (response.ok) {
+        document.getElementById('response').innerText =
+          `성공: ${JSON.stringify(responseData, null, 2)}`;
+      } else {
+        document.getElementById('response').innerText =
+          `오류: ${JSON.stringify(responseData, null, 2)}`;
+      }
+    } catch (error) {
+      console.error('요청 실패:', error);
+      document.getElementById('response').innerText =
+        `네트워크 오류: ${error.message}`;
+    }
+  }
+
+  /******************************************************
+   * 초기 화면 설정
+   ******************************************************/
+  window.onload = function() {
+    document.getElementById("startScreen").style.display = "block";
+  };
+</script>
+</body>
+</html>
